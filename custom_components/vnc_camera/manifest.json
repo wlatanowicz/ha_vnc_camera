@@ -1,0 +1,9 @@
+{
+  "domain": "vnc_camera",
+  "name": "",
+  "documentation": "https://github.com/wlatanowicz/ha_vnc_camera",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["asyncvnc==1.0.3", "Pillow"],
+  "version": "1.0"
+}

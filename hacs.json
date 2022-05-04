@@ -1,0 +1,6 @@
+{
+  "name": "VNC preview as camera",
+  "domain": "vnc_camera",
+  "render_readme": true,
+  "content_in_root": false
+}
