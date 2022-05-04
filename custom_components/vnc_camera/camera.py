@@ -10,6 +10,7 @@ from homeassistant.components.camera import Camera
 from homeassistant.helpers.config_validation import PLATFORM_SCHEMA
 import homeassistant.helpers.config_validation as cv
 
+import asyncio
 import asyncvnc
 from PIL import Image
 
@@ -37,7 +38,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     """Set up the skyfield platform."""
     host = config.get(CONF_HOST)
     port = config.get(CONF_PORT)
@@ -48,9 +49,10 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     panel = VNCCam(
         host, port, username, password
     )
+    hass.async_create_task(panel.vnc_connection())
 
     _LOGGER.debug("Adding VNC cam")
-    add_entities([panel], True)
+    async_add_entities([panel])
 
 
 class VNCCam(Camera):
@@ -64,13 +66,15 @@ class VNCCam(Camera):
         self.username = username
         self.password = password
 
+        self.client = None
+
     @property
     def frame_interval(self):
         # this is how often the image will update in the background.
         # When the GUI panel is up, it is always updated every
         # 10 seconds, which is too much. Must figure out how to
         # reduce...
-        return 180
+        return 1
 
     @property
     def name(self):
@@ -88,19 +92,35 @@ class VNCCam(Camera):
     def icon(self):
         return ICON
 
+    async def vnc_connection(self):
+        while True:
+            try:
+                async with asyncvnc.connect(self.host, self.port, self.username, self.password) as client:
+                    self.client = client
+
+                    while True:
+                        # Handle packet
+                        await client.read()
+
+            except Exception:
+                _LOGGER.exception("VNC Disconnected")
+
+            self.client = None
+            await asyncio.sleep(10)
+
+
     async def async_camera_image(
         self, width: int | None = None, height: int | None = None
     ) -> bytes | None:
-        async with asyncvnc.connect(self.host, self.port, self.username, self.password) as client:
+
+            if not self.client:
+                return None
 
             # Request a video update
-            client.video.refresh()
-
-            # Handle packet
-            await client.read()
+            self.client.video.refresh()
 
             # Retrieve pixels as a 3D numpy array
-            pixels = client.video.as_rgba()
+            pixels = self.client.video.as_rgba()
 
             # Return PNG using PIL/pillow
             image = Image.fromarray(pixels)
